@@ -33,10 +33,19 @@ func main() {
 		request_line, _, _ := strings.Cut(request, "\r\n")
 		parts := strings.Split(request_line, " ")
 		response := "HTTP/1.1 404 Not Found\r\n\r\n"
-		if len(parts) >= 2 && parts[1] == "/" {
-			response = "HTTP/1.1 200 OK\r\n\r\n"
+		if len(parts) >= 2 {
+			path := parts[1]
+			if path == "/" {
+				response = "HTTP/1.1 200 OK\r\n\r\n"
+			} else if strings.HasPrefix(path, "/echo") {
+				str := strings.TrimPrefix(path, "/echo/")
+				response = fmt.Sprintf(
+					"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+					len(str),
+					str,
+				)
+			}
 		}
-
 		_, err = conn.Write([]byte(response))
 		if err != nil {
 			fmt.Println("Error writing response: ", err.Error())
