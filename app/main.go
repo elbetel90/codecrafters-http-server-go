@@ -1,9 +1,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -11,7 +13,7 @@ var (
 	READ_BUF_SIZE int = 1024
 )
 
-func handleClient(conn net.Conn) {
+func handleClient(conn net.Conn, directory string) {
 	defer conn.Close()
 	buf := make([]byte, READ_BUF_SIZE)
 	n, err := conn.Read(buf)
@@ -51,6 +53,17 @@ func handleClient(conn net.Conn) {
 					)
 				}
 			}
+		} else if after, found := strings.CutPrefix(path, "/files/"); found {
+			file_name := after
+			full_path := filepath.Join(directory, file_name)
+			content, err := os.ReadFile(full_path)
+			if err == nil {
+				response = fmt.Sprintf(
+					"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s",
+					len(content),
+					content,
+				)
+			}
 		}
 	}
 	_, err = conn.Write([]byte(response))
@@ -68,6 +81,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	directory := flag.String("directory", "", "path")
+	flag.Parse()
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -75,7 +91,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		go handleClient(conn)
+		go handleClient(conn, *directory)
 
 	}
 }
