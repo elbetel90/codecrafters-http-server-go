@@ -24,6 +24,7 @@ func handleClient(conn net.Conn, directory string) {
 	request := string(buf[:n])
 	request_line, _, _ := strings.Cut(request, "\r\n")
 	parts := strings.Split(request_line, " ")
+	fmt.Println(parts)
 	response := "HTTP/1.1 404 Not Found\r\n\r\n"
 	if len(parts) >= 2 {
 		path := parts[1]
