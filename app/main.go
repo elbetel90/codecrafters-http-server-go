@@ -6,7 +6,10 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/codecrafters-io/http-server-starter-go/app/types"
 )
 
 var (
@@ -24,9 +27,9 @@ func handleClient(conn net.Conn, directory string) {
 	request := string(buf[:n])
 	request_line, _, _ := strings.Cut(request, "\r\n")
 	parts := strings.Split(request_line, " ")
-	fmt.Println(parts)
 	response := "HTTP/1.1 404 Not Found\r\n\r\n"
 	if len(parts) >= 2 {
+		method := parts[0]
 		path := parts[1]
 		if path == "/" {
 			response = "HTTP/1.1 200 OK\r\n\r\n"
@@ -54,16 +57,37 @@ func handleClient(conn net.Conn, directory string) {
 					)
 				}
 			}
-		} else if after, found := strings.CutPrefix(path, "/files/"); found {
-			file_name := after
+		} else if file_name, found := strings.CutPrefix(path, "/files/"); found {
 			full_path := filepath.Join(directory, file_name)
-			content, err := os.ReadFile(full_path)
-			if err == nil {
-				response = fmt.Sprintf(
-					"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s",
-					len(content),
-					content,
-				)
+			if method == string(types.HttpMethodPOST) {
+				_, body, _ := strings.Cut(request, "\r\n\r\n")
+				content_length := 0
+				for _, header := range strings.Split(request, "\r\n")[1:] {
+					name, value, ok := strings.Cut(header, ":")
+					if !ok {
+						continue
+					}
+					if strings.EqualFold(strings.TrimSpace(name), "Content-Length") {
+						content_length, _ = strconv.Atoi(strings.TrimSpace(value))
+						break
+					}
+					if content_length > len(body) {
+						content_length = len(body)
+					}
+				}
+				err = os.WriteFile(full_path, []byte(body[:content_length]), 0644)
+				if err == nil {
+					response = "HTTP/1.1 201 Created\r\n\r\n"
+				}
+			} else {
+				content, err := os.ReadFile(full_path)
+				if err == nil {
+					response = fmt.Sprintf(
+						"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s",
+						len(content),
+						content,
+					)
+				}
 			}
 		}
 	}
