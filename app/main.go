@@ -38,27 +38,36 @@ func handleClient(conn net.Conn, directory string) {
 			str := strings.TrimPrefix(path, "/echo/")
 			request_parts := strings.Split(request, "\r\n")
 			headers := request_parts[1:]
-			compression_type := ""
+			compression_scheme_str := ""
 			for _, header := range headers {
 				name, value, found := strings.Cut(header, ":")
 				if !found {
 					continue
 				}
 				if strings.EqualFold(strings.TrimSpace(name), "Accept-Encoding") {
-					compression_type = strings.TrimSpace(value)
+					compression_scheme_str = strings.TrimSpace(value)
 				}
 			}
-			response = fmt.Sprintf(
-				"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
-				len(str),
-				str)
-			if compression_type != "" && slices.Contains(types.SupportedCompressionSchemes(), compression_type) {
+			valid_compression_scheme := ""
+			for _, compression_scheme := range strings.Split(compression_scheme_str, ",") {
+				scheme := strings.TrimSpace(compression_scheme)
+				if scheme != "" && slices.Contains(types.SupportedCompressionSchemes(), scheme) {
+					valid_compression_scheme = scheme
+					break
+				}
+			}
+			if valid_compression_scheme != "" {
 				response = fmt.Sprintf(
 					"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: %s\r\n\r\n%s",
 					len(str),
-					compression_type,
+					valid_compression_scheme,
 					str,
 				)
+			} else {
+				response = fmt.Sprintf(
+					"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+					len(str),
+					str)
 			}
 
 		} else if strings.HasPrefix(path, "/user-agent") {
