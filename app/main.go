@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"flag"
 	"fmt"
 	"net"
@@ -57,12 +59,19 @@ func handleClient(conn net.Conn, directory string) {
 				}
 			}
 			if valid_compression_scheme != "" {
-				response = fmt.Sprintf(
-					"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: %s\r\n\r\n%s",
-					len(str),
-					valid_compression_scheme,
-					str,
-				)
+				switch valid_compression_scheme {
+				case string(types.CompressionSchemeGzip):
+					compressed, err := gzipCompress([]byte(str))
+					if err == nil {
+						response = fmt.Sprintf(
+							"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: %s\r\n\r\n%s",
+							len(compressed),
+							valid_compression_scheme,
+							compressed,
+						)
+					}
+				}
+
 			} else {
 				response = fmt.Sprintf(
 					"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
@@ -125,6 +134,21 @@ func handleClient(conn net.Conn, directory string) {
 	if err != nil {
 		fmt.Println("Error writing response: ", err.Error())
 	}
+}
+
+func gzipCompress(body []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	_, err := gz.Write(body)
+	if err != nil {
+		gz.Close()
+		return nil, err
+	}
+	err = gz.Close()
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func main() {
