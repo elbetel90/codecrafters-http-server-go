@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -35,11 +36,31 @@ func handleClient(conn net.Conn, directory string) {
 			response = "HTTP/1.1 200 OK\r\n\r\n"
 		} else if strings.HasPrefix(path, "/echo") {
 			str := strings.TrimPrefix(path, "/echo/")
+			request_parts := strings.Split(request, "\r\n")
+			headers := request_parts[1:]
+			compression_type := ""
+			for _, header := range headers {
+				name, value, found := strings.Cut(header, ":")
+				if !found {
+					continue
+				}
+				if strings.EqualFold(strings.TrimSpace(name), "Accept-Encoding") {
+					compression_type = strings.TrimSpace(value)
+				}
+			}
 			response = fmt.Sprintf(
 				"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
 				len(str),
-				str,
-			)
+				str)
+			if compression_type != "" && slices.Contains(types.SupportedCompressionSchemes(), compression_type) {
+				response = fmt.Sprintf(
+					"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\nContent-Encoding: %s\r\n\r\n%s",
+					len(str),
+					compression_type,
+					str,
+				)
+			}
+
 		} else if strings.HasPrefix(path, "/user-agent") {
 			request_parts := strings.Split(request, "\r\n")
 			headers := request_parts[1:]
