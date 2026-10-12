@@ -31,6 +31,21 @@ func handleClient(conn net.Conn, directory string) {
 		request_line, _, _ := strings.Cut(request, "\r\n")
 		parts := strings.Split(request_line, " ")
 		response := "HTTP/1.1 404 Not Found\r\n\r\n"
+		close_conn := false
+		for _, header := range strings.Split(request, "\r\n")[1:] {
+			name, value, found := strings.Cut(header, ":")
+			if !found {
+				continue
+			}
+			if strings.EqualFold(strings.TrimSpace(name), "Connection") {
+				user_agent_header_value := strings.TrimSpace(value)
+				if user_agent_header_value == "close" {
+					close_conn = true
+					break
+				}
+			}
+		}
+
 		if len(parts) >= 2 {
 			method := parts[0]
 			path := parts[1]
@@ -130,10 +145,17 @@ func handleClient(conn net.Conn, directory string) {
 				}
 			}
 		}
+		if close_conn {
+			response = strings.Replace(response, "\r\n\r\n", "\r\nConnection: close\r\n\r\n", 1)
+		}
 		_, err = conn.Write([]byte(response))
 		if err != nil {
 			fmt.Println("Error writing response: ", err.Error())
 		}
+		if close_conn {
+			return
+		}
+
 	}
 }
 
